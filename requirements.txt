@@ -8,6 +8,5 @@ cryptography
 envparse
 ipython
 ipdb
-pdbpp
 jinja2
 motor
