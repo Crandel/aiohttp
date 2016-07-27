@@ -29,13 +29,18 @@ async def shutdown(server, app, handler):
 
 
 async def init(loop):
-
-    app = web.Application(loop=loop, middlewares=[
+    middle = [
         session_middleware(EncryptedCookieStorage(SECRET_KEY)),
         authorize,
         db_handler,
-#         aiohttp_debugtoolbar.middleware,
-    ])
+    ]
+
+    if DEBUG:
+        middle.append(aiohttp_debugtoolbar.middleware)
+
+    app = web.Application(loop=loop, middlewares=
+                middle
+    )
     app['websockets'] = []
     handler = app.make_handler()
     if DEBUG:
