@@ -1,9 +1,10 @@
 import json
 from time import time
 from bson.objectid import ObjectId
+
 import aiohttp_jinja2
-from aiohttp_session import get_session
 from aiohttp import web
+from aiohttp_session import get_session
 from auth.models import User
 
 
@@ -15,7 +16,6 @@ def redirect(request, router_name):
 def set_session(session, user_id, request):
     session['user'] = str(user_id)
     session['last_visit'] = time()
-    print(session)
     redirect(request, 'main')
 
 
@@ -36,7 +36,6 @@ class Login(web.View):
         data = await self.request.post()
         user = User(self.request.db, data)
         result = await user.check_user()
-        print(result, 'login')
         if isinstance(result, dict):
             session = await get_session(self.request)
             set_session(session, str(result['_id']), self.request)
@@ -57,7 +56,6 @@ class SignIn(web.View):
         data = await self.request.post()
         user = User(self.request.db, data)
         result = await user.create_user()
-        print(result, type(result), "sign")
         if isinstance(result, ObjectId):
             session = await get_session(self.request)
             set_session(session, str(result), self.request)
