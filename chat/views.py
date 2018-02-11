@@ -1,6 +1,6 @@
 import aiohttp_jinja2
 from aiohttp_session import get_session
-from aiohttp import web, MsgType
+from aiohttp import web
 from auth.models import User
 from chat.models import Message
 from settings import log
@@ -28,7 +28,7 @@ class WebSocket(web.View):
         self.request.app['websockets'].append(ws)
 
         async for msg in ws:
-            if msg.tp == MsgType.text:
+            if msg.tp == web.MsgType.text:
                 if msg.data == 'close':
                     await ws.close()
                 else:
@@ -37,7 +37,7 @@ class WebSocket(web.View):
                     log.debug(result)
                     for _ws in self.request.app['websockets']:
                         _ws.send_str('(%s) %s' % (login, msg.data))
-            elif msg.tp == MsgType.error:
+            elif msg.tp == web.MsgType.error:
                 log.debug('ws connection closed with exception %s' % ws.exception())
 
         self.request.app['websockets'].remove(ws)
