@@ -12,13 +12,15 @@ from middlewares import db_handler, authorize
 from motor import motor_asyncio as ma
 from settings import *
 
+import hashlib
+
 
 async def on_shutdown(app):
     for ws in app['websockets']:
         await ws.close(code=1001, message='Server shutdown')
 
 middle = [
-    session_middleware(EncryptedCookieStorage(SECRET_KEY)),
+    session_middleware(EncryptedCookieStorage(hashlib.sha256(bytes(SECRET_KEY, 'utf-8')).digest())),
     authorize,
     db_handler,
 ]
