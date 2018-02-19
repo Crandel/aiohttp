@@ -9,8 +9,8 @@ Main Chat page
 {% endblock %}
 {% block content %}
 <div id='subscribe'>
-    {% for mes in messages%}
-    <p>[{{ mes['time'].strftime('%H:%M:%S') }}] ({{ mes['user'] }}) {{ mes['msg'] }}</p>
+    {% for mes in messages %}
+      <p>[{{ mes['time'].strftime('%H:%M:%S') }}] <span class="user">{{ mes['user'] }}</span>: {{ mes['msg'] }}</p>
     {% endfor %}
 </div>
     <p>

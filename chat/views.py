@@ -36,7 +36,7 @@ class WebSocket(web.View):
                     result = await message.save(user=login, msg=msg.data)
                     log.debug(result)
                     for _ws in self.request.app['websockets']:
-                        _ws.send_str('(%s) %s' % (login, msg.data))
+                        _ws.send_str('{"user": "%s", "msg": "%s"}' % (login, msg.data))
             elif msg.tp == web.MsgType.error:
                 log.debug('ws connection closed with exception %s' % ws.exception())
 
