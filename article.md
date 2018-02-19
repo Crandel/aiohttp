@@ -46,15 +46,15 @@ Handler - так называемая coroutine, объект, который н
 import asyncio
 from aiohttp import web
 
-loop = asyncio.get_event_loop()
-
-app = web.Application(loop=loop, middlewares=[
-    session_middleware(EncryptedCookieStorage(SECRET_KEY)),
+middle = [
+    session_middleware(EncryptedCookieStorage(hashlib.sha256(bytes(SECRET_KEY, 'utf-8')).digest())),
     authorize,
     db_handler,
-])
+]
+
+app = web.Application(middlewares=middle)
 ```
-Как вы видите, при инициализации в app передаётся loop, а также список middleware, о котором я расскажу попозже.
+Как вы видите, при инициализации в app передаётся список middleware, о котором я расскажу попозже.
 
 __Routes__
 
@@ -135,41 +135,25 @@ __Middlewares__
 
 *Пример проверки на авторизацию*
 ```python
-async def authorize(app, handler):
-    async def middleware(request):
-        def check_path(path):
-            result = True
-            for r in ['/login', '/static/', '/signin', '/signout', '/_debugtoolbar/']:
-                if path.startswith(r):
-                    result = False
-            return result
+@middleware
+async def authorize(request, handler):
+    def check_path(path):
+        result = True
+        for r in ['/login', '/static/', '/signin', '/signout', '/_debugtoolbar/']:
+            if path.startswith(r):
+                result = False
+        return result
 
-        session = await get_session(request)
-        if session.get("user"):
-            return await handler(request)
-        elif check_path(request.path):
-            url = request.app.router['login'].url()
-            raise web.HTTPFound(url)
-            return handler(request)
-        else:
-            return await handler(request)
-
-    return middleware
+    session = await get_session(request)
+    if session.get("user"):
+        return await handler(request)
+    elif check_path(request.path):
+        url = request.app.router['login'].url()
+        raise web.HTTPFound(url)
+        return handler(request)
+    else:
+        return await handler(request)
 ```
-Также я сделал middleware для подключения базы данных.
-```python
-async def db_handler(app, handler):
-    async def middleware(request):
-        if request.path.startswith('/static/') or request.path.startswith('/_debugtoolbar'):
-            response = await handler(request)
-            return response
-
-        request.db = app.db
-        response = await handler(request)
-        return response
-    return middleware
-```
-Детали подключения ниже по тексту.
 
 __Базы данных__
 
@@ -179,49 +163,18 @@ __Базы данных__
 app.client = ma.AsyncIOMotorClient(MONGO_HOST)
 app.db = app.client[MONGO_DB_NAME]
 ```
-А закрытие соединения происходит в специальной функции shutdown.
+А закрытие соединения происходит в специальной функции on_shutdown.
 ```python
-async def shutdown(server, app, handler):
-
-    server.close()
-    await server.wait_closed()
-    app.client.close()  # database connection close
-    await app.shutdown()
-    await handler.finish_connections(10.0)
-    await app.cleanup()
+async def on_shutdown(app):
+    for ws in app['websockets']:
+        await ws.close(code=1001, message='Server shutdown')
 ```
 Хочу заметить, что в случае асинхронного сервера нужно корректно завершить все параллельные задачи.
 
-Немного подробнее про создание event loop.
 ```python
-loop = asyncio.get_event_loop()
-serv_generator, handler, app = loop.run_until_complete(init(loop))
-serv = loop.run_until_complete(serv_generator)
-log.debug('start server', serv.sockets[0].getsockname())
-try:
-    loop.run_forever()
-except KeyboardInterrupt:
-    log.debug(' Stop server begin')
-finally:
-    loop.run_until_complete(shutdown(serv, app, handler))
-    loop.close()
-log.debug('Stop server end')
+web.run_app(app)
 ```
-Сам loop создаётся из asyncio.
-```python
-serv_generator, handler, app = loop.run_until_complete(init(loop))
-```
-Метод run_until_complete добавляет coriutines в loop. В данном случае он добавляет функцию [инициализации](https://github.com/Crandel/aiohttp/blob/master/app.py#L31) приложения.
-```python
-try:
-    loop.run_forever()
-except KeyboardInterrupt:
-    log.debug(' Stop server begin')
-finally:
-    loop.run_until_complete(shutdown(serv, app, handler))
-    loop.close()
-```
-Собственно сама реализация бесконечного цикла, который прерывается в случае исключения. Перед закрытием вызывается функция shutdown, которая завершает все соединения и корректно останавливает сервер.
+Собственно сам запуск бесконечного цикла, который прерывается в случае исключения. Перед закрытием вызывается функция on_shutdown, которая завершает все соединения и корректно останавливает сервер.
 
 Теперь нам надо разобраться, как делать запросы, извлекать и изменять данные
 ```python
@@ -255,7 +208,7 @@ FileSystemLoader('templates') указывает jinja2 что наши шабл
 class ChatList(web.View):
     @aiohttp_jinja2.template('chat/index.html')
     async def get(self):
-        message = Message(self.request.db)
+        message = Message(self.request.app.db)
         messages = await message.get_messages()
         return {'messages': messages}
 ```
@@ -288,7 +241,7 @@ app.router.add_static('/static', 'static', name='static')
 ```
 Чтобы задействовать её в шаблоне, нужно достать её из app.
 ```python
-<script src="{{ app.router.static.url(filename='js/main.js') }}"></script>
+<script src="{{ static('js/main.js') }}"></script>
 ```
 Все просто, ничего сложного нету.
 
@@ -369,7 +322,7 @@ class WebSocket(web.View):
         await ws.prepare(self.request)
 
         session = await get_session(self.request)
-        user = User(self.request.db, {'id': session.get('user')})
+        user = User(self.request.app.db, {'id': session.get('user')})
         login = await user.get_login()
 
         for _ws in self.request.app['websockets']:
@@ -381,7 +334,7 @@ class WebSocket(web.View):
                 if msg.data == 'close':
                     await ws.close()
                 else:
-                    message = Message(self.request.db)
+                    message = Message(self.request.app.db)
                     result = await message.save(user=login, msg=msg.data)
                     log.debug(result)
                     for _ws in self.request.app['websockets']:

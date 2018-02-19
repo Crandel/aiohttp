@@ -1,4 +1,4 @@
-aiohttp==2.3.10
+aiohttp==3.0.1
 aiohttp_debugtoolbar==0.4.1
 aiohttp_jinja2==0.15
 aiohttp_session[secure]==2.2.0

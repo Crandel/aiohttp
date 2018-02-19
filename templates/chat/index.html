@@ -5,7 +5,7 @@ Main Chat page
 {% endblock %}
 
 {% block head %}
-    <link href="{{ app.router.static.url(filename='css/chat.css') }}" rel="stylesheet">
+    <link href="{{ static('css/chat.css') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
 <div id='subscribe'>
@@ -21,5 +21,5 @@ Main Chat page
 {% endblock %}
 
 {% block footer %}
-    <script src="{{ app.router.static.url(filename='js/main.js') }}"></script>
+    <script src="{{ static('js/main.js') }}"></script>
 {% endblock %}

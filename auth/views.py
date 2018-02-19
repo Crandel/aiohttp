@@ -34,7 +34,7 @@ class Login(web.View):
 
     async def post(self):
         data = await self.request.post()
-        user = User(self.request.db, data)
+        user = User(self.request.app.db, data)
         result = await user.check_user()
         if isinstance(result, dict):
             session = await get_session(self.request)
@@ -54,7 +54,7 @@ class SignIn(web.View):
 
     async def post(self, **kw):
         data = await self.request.post()
-        user = User(self.request.db, data)
+        user = User(self.request.app.db, data)
         result = await user.create_user()
         if isinstance(result, ObjectId):
             session = await get_session(self.request)
